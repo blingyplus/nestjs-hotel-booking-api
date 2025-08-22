@@ -18,6 +18,11 @@ A NestJS-based REST API for managing hotel service bookings between clients and 
 - **Validation**: class-validator, class-transformer
 - **Documentation**: Swagger/OpenAPI
 
+## Additional Documentation
+
+- **[DESIGN_ARCHITECTURE.md](./DESIGN_ARCHITECTURE.md)** - System design and architecture decisions
+- **[DEEP_THINKING_ANSWERS.md](./DEEP_THINKING_ANSWERS.md)** - Answers to architectural scalability questions
+
 ## Quick Start
 
 ### Prerequisites
@@ -156,6 +161,7 @@ src/
 - **ProfessionalsService**: Search with location-based filtering
 - **IdempotencyService**: Request deduplication
 - **ClientsService**: Client data management
+
 
 ## Production Considerations
 
