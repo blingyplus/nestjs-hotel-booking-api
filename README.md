@@ -1,311 +1,170 @@
-# NestJS Hotel Booking API
+# Hotel Booking API
 
-A comprehensive hotel booking API built with NestJS, featuring double-booking prevention, idempotency support, and professional search functionality.
+A NestJS-based REST API for managing hotel service bookings between clients and professionals.
 
-## 🚀 Features
+## Features
 
-- **Double-Booking Prevention**: Robust conflict detection with database-level constraints
-- **Idempotency Support**: Prevents duplicate requests with configurable TTL
-- **Professional Search**: Location-based search with distance calculations
-- **Availability Management**: Professional availability windows and validation
-- **Comprehensive Testing**: Unit tests for conflict detection and idempotency
-- **Swagger Documentation**: Interactive API documentation
-- **Database Flexibility**: SQLite for development, PostgreSQL for production
+- **Booking Management**: Create bookings with automatic conflict detection
+- **Professional Search**: Find professionals by location, category, and price
+- **Idempotency**: Prevent duplicate requests with idempotency keys
+- **Double-booking Prevention**: Multi-layered approach to prevent scheduling conflicts
+- **Location-based Search**: Haversine formula for distance calculations
 
-## 🏗️ Architecture
+## Tech Stack
 
-The system follows a modular NestJS architecture with:
+- **Framework**: NestJS
+- **Database**: SQLite (development) / PostgreSQL (production)
+- **ORM**: TypeORM
+- **Validation**: class-validator, class-transformer
+- **Documentation**: Swagger/OpenAPI
 
-- **Entities**: Professional, Client, Booking, Availability, IdempotencyKey
-- **Services**: Business logic with transaction safety
-- **Controllers**: RESTful API endpoints
-- **DTOs**: Request/response validation and documentation
-- **Database**: TypeORM with SQLite/PostgreSQL support
+## Quick Start
 
-## 📋 Prerequisites
+### Prerequisites
 
-- Node.js 18+ 
+- Node.js 18+
 - npm or yarn
-- SQLite (for development)
-- PostgreSQL (optional, for production)
 
-## 🛠️ Installation
+### Installation
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd nestjs-hotel-booking-api
-   ```
-
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
-
-3. **Environment setup**
-   ```bash
-   cp env.example .env
-   # Edit .env with your configuration
-   ```
-
-4. **Database setup**
-   ```bash
-   # Start the application (creates SQLite database)
-   npm run start:dev
-   
-   # In another terminal, seed the database
-   npm run db:seed
-   ```
-
-## 🚀 Running the Application
-
-### Development Mode
 ```bash
-npm run start:dev
+npm install
 ```
 
-### Production Mode
+### Environment Setup
+
+Copy the example environment file:
+
 ```bash
+cp env.example .env
+```
+
+### Database Setup
+
+The application uses SQLite by default. For production, configure PostgreSQL in `.env`.
+
+### Run the Application
+
+```bash
+# Development
+npm run start:dev
+
+# Production
 npm run build
 npm run start:prod
 ```
 
-### Testing
-```bash
-# Run all tests
-npm test
+### Seed Database
 
-# Run tests in watch mode
-npm run test:watch
+```bash
+npm run db:seed
+```
+
+## API Endpoints
+
+### Bookings
+
+#### Create Booking
+```bash
+POST /bookings
+Headers: Idempotency-Key: <unique-key>
+Body: {
+  "professionalId": "uuid",
+  "clientId": "uuid", 
+  "startTime": "2025-08-25T10:00:00Z",
+  "durationHours": 2,
+  "notes": "Optional notes"
+}
+```
+
+### Professionals
+
+#### Search Professionals
+```bash
+GET /search/pros?category=cleaning&locationLat=40.7128&locationLng=-74.0060&maxDistanceKm=10
+```
+
+Query Parameters:
+- `category`: Service category (e.g., cleaning, plumbing)
+- `locationLat`: Search location latitude
+- `locationLng`: Search location longitude  
+- `maxDistanceKm`: Maximum distance in kilometers
+- `maxHourlyRateCents`: Maximum hourly rate
+- `travelMode`: local or travel
+
+### Clients
+
+#### Get Client
+```bash
+GET /clients/:id
+```
+
+## Testing
+
+```bash
+# Run tests
+npm test
 
 # Run tests with coverage
 npm run test:cov
+
+# Run tests in watch mode
+npm run test:watch
 ```
 
-## 📚 API Documentation
+## Database Schema
 
-Once the application is running, visit:
-- **Swagger UI**: http://localhost:3000/api
-- **Health Check**: http://localhost:3000/health
+### Core Tables
 
-## 🔌 API Endpoints
-
-### 1. Create Booking
-**POST** `/bookings`
-
-Creates a new booking with double-booking prevention and idempotency support.
-
-**Headers:**
-```
-Idempotency-Key: <unique-key>
-Content-Type: application/json
-```
-
-**Request Body:**
-```json
-{
-  "professionalId": "uuid",
-  "clientId": "uuid", 
-  "startTime": "2024-01-15T10:00:00Z",
-  "durationHours": 2,
-  "notes": "Optional booking notes"
-}
-```
-
-**Response (201):**
-```json
-{
-  "id": "uuid",
-  "professionalId": "uuid",
-  "clientId": "uuid",
-  "startTime": "2024-01-15T10:00:00Z",
-  "endTime": "2024-01-15T12:00:00Z",
-  "totalPriceCents": 10000,
-  "status": "pending",
-  "stripePaymentIntentId": null,
-  "notes": "Optional booking notes",
-  "createdAt": "2024-01-15T09:00:00Z",
-  "updatedAt": "2024-01-15T09:00:00Z"
-}
-```
-
-**Example cURL:**
-```bash
-curl -X POST http://localhost:3000/bookings \
-  -H "Content-Type: application/json" \
-  -H "Idempotency-Key: client-123:abc123:1705312800000" \
-  -d '{
-    "professionalId": "prof-uuid-here",
-    "clientId": "client-uuid-here",
-    "startTime": "2024-01-15T10:00:00Z",
-    "durationHours": 2,
-    "notes": "Deep cleaning required"
-  }'
-```
-
-### 2. Search Professionals
-**GET** `/search/pros`
-
-Search for professionals with various filters.
-
-**Query Parameters:**
-- `category` (optional): Professional category (e.g., cleaning, plumbing)
-- `locationLat` (optional): Location latitude for distance-based search
-- `locationLng` (optional): Location longitude for distance-based search
-- `maxHourlyRateCents` (optional): Maximum hourly rate in cents
-- `travelMode` (optional): Travel mode preference (local, travel)
-- `maxDistanceKm` (optional): Maximum distance in kilometers
-
-**Example cURL:**
-```bash
-# Search for cleaning professionals within 10km of NYC
-curl "http://localhost:3000/search/pros?category=cleaning&locationLat=40.7128&locationLng=-74.0060&maxDistanceKm=10&maxHourlyRateCents=6000"
-
-# Search for all professionals by price
-curl "http://localhost:3000/search/pros?maxHourlyRateCents=5000"
-```
-
-**Response (200):**
-```json
-[
-  {
-    "id": "uuid",
-    "name": "John Doe",
-    "email": "john@cleaning.com",
-    "category": "cleaning",
-    "hourlyRateCents": 5000,
-    "travelMode": "local",
-    "locationLat": 40.7128,
-    "locationLng": -74.0060,
-    "distanceKm": 2.5,
-    "minPriceCents": 5000,
-    "isAvailable": true
-  }
-]
-```
-
-## 🧪 Testing
-
-### Running Tests
-```bash
-# Unit tests
-npm test
-
-# Tests with coverage
-npm run test:cov
-
-# E2E tests
-npm run test:e2e
-```
-
-### Test Coverage
-The test suite includes:
-- **Conflict Detection Test**: Verifies double-booking prevention
-- **Idempotency Test**: Ensures duplicate request handling
-- **Service Layer Tests**: Comprehensive business logic testing
-- **Controller Tests**: API endpoint validation
-
-## 🗄️ Database
-
-### Development (SQLite)
-- File: `database.sqlite`
-- Auto-created on first run
-- Synchronized schema
-
-### Production (PostgreSQL)
-- Configure via environment variables
-- Run migrations manually
-- Optimized indexes for performance
+- **professionals**: Service providers with location and pricing
+- **clients**: Customers who book services
+- **bookings**: Service appointments with conflict prevention
+- **availabilities**: Professional working hours
+- **idempotency_keys**: Request deduplication
 
 ### Key Indexes
-- `bookings(professional_id, start_time, end_time)` - Overlap detection
+
+- `bookings(professional_id, start_time, end_time)` - Conflict detection
 - `bookings(idempotency_key)` - Idempotency lookups
 - `professionals(category, location_lat, location_lng)` - Search optimization
 
-## 🔒 Security Features
+## Architecture
 
-- **Input Validation**: Comprehensive DTO validation
-- **SQL Injection Protection**: Parameterized queries only
-- **Idempotency**: Prevents duplicate request processing
-- **Transaction Safety**: Database-level consistency
+- **Modular Design**: Feature-based module organization
+- **Service Layer**: Business logic separation
+- **Repository Pattern**: Data access abstraction
+- **DTO Validation**: Input/output data validation
+- **Transaction Safety**: Database transaction management
 
-## 📊 Monitoring & Observability
+## Development
 
-- **Application Metrics**: Response times, error rates
-- **Business Metrics**: Booking success rates
-- **Database Monitoring**: Connection pools, query performance
-- **Error Tracking**: Structured error logging
+### Project Structure
 
-## 🚀 Deployment
-
-### Docker (Recommended)
-```bash
-# Build image
-docker build -t hotel-booking-api .
-
-# Run container
-docker run -p 3000:3000 hotel-booking-api
+```
+src/
+├── bookings/          # Booking management
+├── professionals/     # Professional search
+├── clients/          # Client management
+├── availabilities/   # Availability management
+├── common/           # Shared services
+└── database/         # Database configuration
 ```
 
-### Manual Deployment
-```bash
-# Build application
-npm run build
+### Key Services
 
-# Set production environment
-export NODE_ENV=production
+- **BookingsService**: Core booking logic with conflict prevention
+- **ProfessionalsService**: Search with location-based filtering
+- **IdempotencyService**: Request deduplication
+- **ClientsService**: Client data management
 
-# Start application
-npm run start:prod
-```
+## Production Considerations
 
-## 🔧 Configuration
+- **Database**: Use PostgreSQL for production
+- **Caching**: Implement Redis for idempotency keys
+- **Monitoring**: Add application and business metrics
+- **Security**: Implement authentication and rate limiting
+- **Scaling**: Horizontal scaling with load balancers
 
-### Environment Variables
-- `DB_TYPE`: Database type (sqlite/postgres)
-- `DB_NAME`: Database name
-- `PORT`: Application port
-- `NODE_ENV`: Environment (development/production)
+## License
 
-### Database Configuration
-- **SQLite**: Default for development
-- **PostgreSQL**: Configure for production with connection pooling
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for new functionality
-5. Submit a pull request
-
-## 📄 License
-
-This project is licensed under the MIT License.
-
-## 🆘 Support
-
-For questions or issues:
-1. Check the API documentation at `/api`
-2. Review the test suite for usage examples
-3. Check the logs for detailed error information
-
-## 🎯 Assessment Requirements Met
-
-✅ **Part 1 - Software Design & Architecture**: Complete design document with assumptions, architecture, database design, critical flows, and key considerations
-
-✅ **Part 2 - Coding Challenge**: 
-- POST /bookings endpoint with double-booking prevention
-- GET /search/pros endpoint with filters
-- Comprehensive tests for conflict detection and idempotency
-- Idempotency-Key header support
-
-✅ **Part 3 - Deep Thinking Questions**: Answered in the design document
-
-✅ **Additional Requirements**:
-- Source code with clear structure
-- Comprehensive README with setup instructions
-- Seed data for quick testing
-- Example cURL commands
-- Swagger API documentation
-- Professional-grade code quality
+Private - Assessment Project
