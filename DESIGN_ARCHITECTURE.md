@@ -1,171 +1,137 @@
-# Hotel Booking System - Design & Architecture Document
+# Design & Architecture Document - Hotel Booking API
 
-## 1. Assumptions
+## Assumptions
 
-- **Business Rules**: 
-  - Professionals have fixed hourly rates and availability windows
-  - Bookings are time-bound with start_time and calculated end_time
-  - Travel mode affects pricing (local vs. travel required)
-  - Stripe handles payment processing with webhook confirmations
-  - System operates in a single timezone initially
+- **Database**: SQLite for development/testing, PostgreSQL for production
+- **Authentication**: Basic client identification via client ID (no full auth system implemented)
+- **Payment**: Stripe integration planned but not fully implemented
+- **Scaling**: Single-instance deployment with potential for horizontal scaling
+- **Time Zones**: All times stored in UTC, client-side conversion expected
 
-- **Technical Constraints**:
-  - NestJS backend with SQLite for development, Postgres for production
-  - RESTful API design
-  - Stateless application architecture
-  - Eventual consistency acceptable for search results
+## High-Level Architecture
 
-## 2. High-Level Architecture
+### Monolithic NestJS Application
+- **Framework**: NestJS with TypeORM for database operations
+- **Database**: SQLite/PostgreSQL with TypeORM entities and migrations
+- **API Layer**: RESTful endpoints with Swagger documentation
+- **Validation**: Class-validator for DTO validation
+- **Error Handling**: Consistent HTTP status codes and error responses
 
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Client Apps  │    │   Load Balancer │    │   NestJS API    │
-│   (Web/Mobile) │───▶│   (Nginx/ALB)   │───▶│   (Multiple    │
-└─────────────────┘    └─────────────────┘    │   Instances)    │
-                                              └─────────────────┘
-                                                       │
-                                                       ▼
-                                              ┌─────────────────┐
-                                              │   Database      │
-                                              │   (PostgreSQL)  │
-                                              └─────────────────┘
-                                                       │
-                                                       ▼
-                                              ┌─────────────────┐
-                                              │   Redis Cache   │
-                                              │   (Sessions,   │
-                                              │   Idempotency)  │
-                                              └─────────────────┘
-                                                       │
-                                                       ▼
-                                              ┌─────────────────┐
-                                              │   Stripe API    │
-                                              │   (Payments)    │
-                                              └─────────────────┘
-```
+**Justification**: Monolithic approach chosen for simplicity and rapid development. The modular structure allows for future microservice extraction. NestJS provides excellent dependency injection and modular architecture out of the box.
 
-**Architecture Justification**:
-- **Microservices-ready**: Modular design allows future service separation
-- **Scalable**: Stateless API instances can be horizontally scaled
-- **Resilient**: Redis provides caching and idempotency key storage
-- **Secure**: Stripe handles sensitive payment data
-- **Maintainable**: Clear separation of concerns with NestJS modules
+### Key Components
+- **Bookings Module**: Core booking logic with conflict detection
+- **Professionals Module**: Professional search and management
+- **Clients Module**: Client information management
+- **Common Module**: Shared services (idempotency, utilities)
+- **Database Module**: TypeORM configuration and migrations
 
-## 3. Database Design
+## Database Design
 
-### Core Tables
+### Main Tables
 
-**professionals**
-```sql
-- id (UUID, PK)
-- name (VARCHAR)
-- email (VARCHAR, UNIQUE)
-- category (VARCHAR)
-- hourly_rate_cents (INTEGER)
-- travel_mode (ENUM: 'local', 'travel')
-- location_lat (DECIMAL)
-- location_lng (DECIMAL)
-- created_at (TIMESTAMP)
-- updated_at (TIMESTAMP)
-```
+#### `professionals`
+- `id` (UUID, Primary Key)
+- `name`, `email`, `category`
+- `hourly_rate_cents` (Integer)
+- `travel_mode` (VARCHAR - LOCAL/REMOTE)
+- `location_lat`, `location_lng` (Decimal)
+- `is_active` (Boolean)
+- `created_at`, `updated_at` (DateTime)
 
-**availabilities**
-```sql
-- id (UUID, PK)
-- professional_id (UUID, FK)
-- day_of_week (INTEGER, 0-6)
-- start_time (TIME)
-- end_time (TIME)
-- is_active (BOOLEAN)
-```
+#### `clients`
+- `id` (UUID, Primary Key)
+- `name`, `email`, `phone`
+- `is_active` (Boolean)
+- `created_at`, `updated_at` (DateTime)
 
-**bookings**
-```sql
-- id (UUID, PK)
-- professional_id (UUID, FK)
-- client_id (UUID, FK)
-- start_time (TIMESTAMP)
-- end_time (TIMESTAMP)
-- total_price_cents (INTEGER)
-- status (ENUM: 'pending', 'confirmed', 'cancelled')
-- stripe_payment_intent_id (VARCHAR)
-- idempotency_key (VARCHAR, UNIQUE)
-- created_at (TIMESTAMP)
-- updated_at (TIMESTAMP)
-```
+#### `bookings`
+- `id` (UUID, Primary Key)
+- `professional_id`, `client_id` (Foreign Keys)
+- `start_time`, `end_time` (DateTime)
+- `duration_hours` (Integer)
+- `total_price_cents` (Integer)
+- `status` (VARCHAR - PENDING/PAID/CANCELLED)
+- `stripe_payment_intent_id` (VARCHAR, nullable)
+- `idempotency_key` (VARCHAR)
+- `notes` (Text, nullable)
+- `created_at`, `updated_at` (DateTime)
 
-**clients**
-```sql
-- id (UUID, PK)
-- name (VARCHAR)
-- email (VARCHAR, UNIQUE)
-- phone (VARCHAR)
-- created_at (TIMESTAMP)
-```
+#### `availabilities`
+- `id` (UUID, Primary Key)
+- `professional_id` (Foreign Key)
+- `day_of_week` (Integer, 0-6)
+- `start_time`, `end_time` (Time)
+- `is_active` (Boolean)
 
-**idempotency_keys**
-```sql
-- key (VARCHAR, PK)
-- request_hash (VARCHAR)
-- response_data (JSONB)
-- expires_at (TIMESTAMP)
-- created_at (TIMESTAMP)
-```
+#### `idempotency_keys`
+- `key` (VARCHAR, Primary Key)
+- `request_hash` (VARCHAR)
+- `response_data` (Text - JSON serialized)
+- `expires_at` (DateTime)
+- `created_at` (DateTime)
 
 ### Key Indexes
-- `bookings(professional_id, start_time, end_time)` - For overlap detection
-- `bookings(idempotency_key)` - For idempotency lookups
-- `professionals(category, location_lat, location_lng)` - For search optimization
-- `availabilities(professional_id, day_of_week)` - For availability checks
+- **Bookings**: `(professional_id, start_time, end_time)` - Unique constraint for double-booking prevention
+- **Bookings**: `(idempotency_key)` - For idempotency lookups
+- **Professionals**: `(category, is_active)` - For search filtering
+- **Professionals**: `(location_lat, location_lng)` - For distance calculations
+- **Idempotency**: `(expires_at)` - For cleanup operations
 
-## 4. Critical Flows
+## Critical Flows
 
 ### Booking Creation Flow
-```
-1. Client → POST /bookings
-2. Validate idempotency key
-3. Check professional availability
-4. Detect booking conflicts (overlapping times)
-5. Calculate end_time and total_price_cents
-6. Create booking record (status: 'pending')
-7. Create Stripe PaymentIntent
-8. Return booking details + payment_intent_client_secret
-```
+1. **Request Validation**: Validate DTO and check if start time is in the future
+2. **Idempotency Check**: Look up existing idempotency key, return cached response if found
+3. **Entity Validation**: Verify professional, client, and availability exist
+4. **Conflict Detection**: Check for overlapping bookings using database query
+5. **Price Calculation**: Calculate total price based on duration and hourly rate
+6. **Booking Creation**: Create booking record within database transaction
+7. **Response Caching**: Store response data with idempotency key
 
 ### Stripe Payment Confirmation Flow
-```
-1. Stripe → Webhook /stripe/webhook
-2. Validate webhook signature
-3. Extract payment_intent_id
-4. Update booking status to 'confirmed'
-5. Send confirmation email to client
-6. Update professional calendar
-```
+1. **Webhook Reception**: Receive Stripe webhook with payment confirmation
+2. **Idempotency Check**: Verify webhook hasn't been processed before
+3. **Payment Verification**: Verify payment amount matches booking total
+4. **Status Update**: Update booking status to PAID
+5. **Event Logging**: Log successful payment for audit trail
 
-## 5. Key Considerations
+## Key Considerations
 
 ### Double-Booking Prevention
-- **Database-level constraints**: Unique constraint on (professional_id, start_time, end_time)
-- **Application-level validation**: Check for overlaps before insertion
-- **Optimistic locking**: Use version numbers for concurrent updates
-- **Transaction isolation**: SERIALIZABLE level for critical booking operations
+- **Database Constraints**: Unique index prevents overlapping time slots
+- **Application Logic**: Additional validation in service layer
+- **Transaction Safety**: All operations wrapped in database transactions
+- **Concurrency Handling**: Proper locking mechanisms for high-load scenarios
 
 ### Idempotency
-- **Key scope**: Global across all endpoints
-- **Storage**: Redis with TTL (24 hours)
-- **Key format**: `{client_id}:{request_hash}:{timestamp}`
-- **Cleanup**: Automatic expiration + background job for cleanup
+- **Key Generation**: `{client_id}:{request_hash}:{timestamp}` format
+- **Request Hashing**: SHA-256 hash of request body for conflict detection
+- **TTL Management**: Configurable expiration times with background cleanup
+- **Response Caching**: Store successful responses for duplicate request handling
 
-### Monitoring
-- **Application metrics**: Response times, error rates, throughput
-- **Business metrics**: Booking success rate, payment conversion
-- **Infrastructure**: CPU, memory, database connections
-- **Alerts**: High error rates, payment failures, double-booking attempts
+### Monitoring & Observability
+- **Logging**: Structured logging for all critical operations
+- **Error Tracking**: Consistent error responses with appropriate HTTP status codes
+- **Performance Metrics**: Response time tracking for key endpoints
+- **Health Checks**: Application health endpoint for monitoring
 
 ### Security
-- **Authentication**: JWT tokens with refresh mechanism
-- **Authorization**: Role-based access control (client, professional, admin)
-- **Input validation**: Strict schema validation for all inputs
-- **Rate limiting**: Per-client and per-endpoint limits
-- **SQL injection**: Parameterized queries only
-- **XSS protection**: Input sanitization and output encoding
+- **Input Validation**: Comprehensive DTO validation using class-validator
+- **SQL Injection Prevention**: TypeORM parameterized queries
+- **Rate Limiting**: Consider implementing rate limiting for production
+- **Data Sanitization**: Proper escaping of user inputs
+
+## Future Considerations
+
+### Scalability
+- **Database Sharding**: Partition tables by date or geographic region
+- **Caching Layer**: Redis for frequently accessed data
+- **Load Balancing**: Multiple application instances behind load balancer
+- **Message Queues**: Async processing for high-volume operations
+
+### Microservices
+- **Module Extraction**: Each module can become a separate service
+- **Event-Driven Architecture**: Domain events for inter-service communication
+- **API Gateway**: Centralized routing and authentication
+- **Service Discovery**: Dynamic service registration and discovery
