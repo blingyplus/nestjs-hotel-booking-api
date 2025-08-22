@@ -25,8 +25,8 @@ export class Professional {
   hourlyRateCents: number;
 
   @Column({
-    type: 'enum',
-    enum: TravelMode,
+    type: 'varchar',
+    length: 20,
     default: TravelMode.LOCAL,
   })
   travelMode: TravelMode;

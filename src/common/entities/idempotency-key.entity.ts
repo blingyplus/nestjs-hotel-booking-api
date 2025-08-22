@@ -8,10 +8,10 @@ export class IdempotencyKey {
   @Column({ type: 'varchar', length: 255, name: 'request_hash' })
   requestHash: string;
 
-  @Column({ type: 'jsonb', name: 'response_data' })
-  responseData: any;
+  @Column({ type: 'text', name: 'response_data' })
+  responseData: string;
 
-  @Column({ type: 'timestamp', name: 'expires_at' })
+  @Column({ type: 'datetime', name: 'expires_at' })
   expiresAt: Date;
 
   @CreateDateColumn({ name: 'created_at' })

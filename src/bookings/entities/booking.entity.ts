@@ -21,18 +21,18 @@ export class Booking {
   @Column({ type: 'uuid', name: 'client_id' })
   clientId: string;
 
-  @Column({ type: 'timestamp', name: 'start_time' })
+  @Column({ type: 'datetime', name: 'start_time' })
   startTime: Date;
 
-  @Column({ type: 'timestamp', name: 'end_time' })
+  @Column({ type: 'datetime', name: 'end_time' })
   endTime: Date;
 
   @Column({ type: 'int', name: 'total_price_cents' })
   totalPriceCents: number;
 
   @Column({
-    type: 'enum',
-    enum: BookingStatus,
+    type: 'varchar',
+    length: 20,
     default: BookingStatus.PENDING,
   })
   status: BookingStatus;

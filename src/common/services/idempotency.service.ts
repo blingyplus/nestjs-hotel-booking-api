@@ -46,7 +46,7 @@ export class IdempotencyService {
     if (existingKey) {
       // If request hash matches, return cached response
       if (existingKey.requestHash === requestHash) {
-        return existingKey.responseData;
+        return JSON.parse(existingKey.responseData);
       }
       
       // If request hash doesn't match, it's a conflict
@@ -60,7 +60,7 @@ export class IdempotencyService {
     await this.idempotencyKeyRepository.save({
       key,
       requestHash,
-      responseData,
+      responseData: JSON.stringify(responseData),
       expiresAt,
     });
 
