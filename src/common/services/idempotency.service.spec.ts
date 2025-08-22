@@ -1,11 +1,11 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { ConflictException } from '@nestjs/common';
-import { IdempotencyService } from './idempotency.service';
-import { IdempotencyKey } from '../entities/idempotency-key.entity';
+import { Test, TestingModule } from "@nestjs/testing";
+import { getRepositoryToken } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { ConflictException } from "@nestjs/common";
+import { IdempotencyService } from "./idempotency.service";
+import { IdempotencyKey } from "../entities/idempotency-key.entity";
 
-describe('IdempotencyService', () => {
+describe("IdempotencyService", () => {
   let service: IdempotencyService;
   let mockRepository: any;
 
@@ -33,44 +33,47 @@ describe('IdempotencyService', () => {
     service = module.get<IdempotencyService>(IdempotencyService);
   });
 
-  it('should be defined', () => {
+  it("should be defined", () => {
     expect(service).toBeDefined();
   });
 
-  describe('generateKey', () => {
-    it('should generate a unique key with client ID, request hash, and timestamp', () => {
-      const clientId = 'client-123';
-      const requestBody = { test: 'data' };
-      
+  describe("generateKey", () => {
+    it("should generate a unique key with client ID, request hash, and timestamp", () => {
+      const clientId = "client-123";
+      const requestBody = { test: "data" };
+
       const key = service.generateKey(clientId, requestBody);
-      
+
       expect(key).toContain(clientId);
-      expect(key).toContain('test:data');
-      expect(key).toMatch(/^\w+:\w+:\d+$/);
+      expect(key).toMatch(/^[^:]+:[a-f0-9]+:\d+$/);
     });
 
-    it('should generate different keys for different request bodies', () => {
-      const clientId = 'client-123';
-      const body1 = { test: 'data1' };
-      const body2 = { test: 'data2' };
-      
+    it("should generate different keys for different request bodies", () => {
+      const clientId = "client-123";
+      const body1 = { test: "data1" };
+      const body2 = { test: "data2" };
+
       const key1 = service.generateKey(clientId, body1);
       const key2 = service.generateKey(clientId, body2);
-      
+
       expect(key1).not.toBe(key2);
     });
   });
 
-  describe('checkAndCache', () => {
-    const requestBody = { test: 'data' };
-    const responseData = { result: 'success' };
-    const key = 'test-key-123';
+  describe("checkAndCache", () => {
+    const requestBody = { test: "data" };
+    const responseData = { result: "success" };
+    const key = "test-key-123";
 
-    it('should return cached response when key exists and request hash matches', async () => {
+    it("should return cached response when key exists and request hash matches", async () => {
+      // Calculate the actual hash that the service will generate
+      const crypto = require("crypto");
+      const actualHash = crypto.createHash("sha256").update(JSON.stringify(requestBody)).digest("hex");
+
       const existingKey = {
         key,
-        requestHash: 'abc123',
-        responseData,
+        requestHash: actualHash,
+        responseData: JSON.stringify(responseData),
         expiresAt: new Date(Date.now() + 3600000), // 1 hour from now
         createdAt: new Date(),
       };
@@ -83,10 +86,10 @@ describe('IdempotencyService', () => {
       expect(mockRepository.save).not.toHaveBeenCalled();
     });
 
-    it('should throw ConflictException when key exists but request hash differs', async () => {
+    it("should throw ConflictException when key exists but request hash differs", async () => {
       const existingKey = {
         key,
-        requestHash: 'different-hash',
+        requestHash: "different-hash",
         responseData,
         expiresAt: new Date(Date.now() + 3600000),
         createdAt: new Date(),
@@ -94,12 +97,10 @@ describe('IdempotencyService', () => {
 
       mockRepository.findOne.mockResolvedValue(existingKey);
 
-      await expect(
-        service.checkAndCache(key, requestBody, responseData)
-      ).rejects.toThrow(ConflictException);
+      await expect(service.checkAndCache(key, requestBody, responseData)).rejects.toThrow(ConflictException);
     });
 
-    it('should cache new response when key does not exist', async () => {
+    it("should cache new response when key does not exist", async () => {
       mockRepository.findOne.mockResolvedValue(null);
       mockRepository.save.mockResolvedValue({});
 
@@ -109,12 +110,12 @@ describe('IdempotencyService', () => {
       expect(mockRepository.save).toHaveBeenCalledWith({
         key,
         requestHash: expect.any(String),
-        responseData,
+        responseData: JSON.stringify(responseData),
         expiresAt: expect.any(Date),
       });
     });
 
-    it('should use custom TTL when provided', async () => {
+    it("should use custom TTL when provided", async () => {
       mockRepository.findOne.mockResolvedValue(null);
       mockRepository.save.mockResolvedValue({});
 
@@ -130,8 +131,8 @@ describe('IdempotencyService', () => {
     });
   });
 
-  describe('cleanupExpiredKeys', () => {
-    it('should delete expired keys', async () => {
+  describe("cleanupExpiredKeys", () => {
+    it("should delete expired keys", async () => {
       const mockQueryBuilder = {
         delete: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
@@ -143,7 +144,7 @@ describe('IdempotencyService', () => {
       await service.cleanupExpiredKeys();
 
       expect(mockQueryBuilder.delete).toHaveBeenCalled();
-      expect(mockQueryBuilder.where).toHaveBeenCalledWith('expires_at < :now', { now: expect.any(Date) });
+      expect(mockQueryBuilder.where).toHaveBeenCalledWith("expires_at < :now", { now: expect.any(Date) });
       expect(mockQueryBuilder.execute).toHaveBeenCalled();
     });
   });
